@@ -8,7 +8,7 @@ jobs:
         - set -e  # If any of the following steps fail, just stop at that point.
         - make -C docs html  # Build the documentation.
         - pip3 install doctr
-        - doctr deploy --built-docs docs/build/html/ . # Publish the documentation.
+        - doctr deploy . --built-docs docs/build/html/ # Publish the documentation.
 cache:
   directories:
     - $HOME/.cache/pip
