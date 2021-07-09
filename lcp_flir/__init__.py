@@ -3,4 +3,4 @@ from ._version import get_versions
 __version__ = get_versions()['version']
 del get_versions
 
-from . import flir_camera_DL
+#from . import flir_camera_DL
