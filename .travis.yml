@@ -11,7 +11,7 @@ install:
   # can cause problems. Upgrade them.
   - pip install --upgrade pip numpy
   - pip install wheel
-  - pip install PySpin/Linux-ubuntu-18.04⁩/⁨spinnaker_python-2.0.0.109-Ubuntu18.04-cp37-cp37m-linux_x86_64⁩/spinnaker_python-2.0.0.109-cp37-cp37m-linux_x86_64.whl
+  - pip install spinnaker_python-2.0.0.109-cp37-cp37m-linux_x86_64.whl
   # Install this package and the packages listed in requirements.txt.
   - pip install .
   # Install extra requirements for running tests and building docs.
