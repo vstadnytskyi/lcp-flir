@@ -55,6 +55,7 @@ class FlirCamera():
         self.io_pull_queue = None
         self.io_push_queue = None
 
+        self.system = PySpin.System.GetInstance()
 
     def init(self, config_filename):
         from numpy import zeros, nan, ones
@@ -62,7 +63,7 @@ class FlirCamera():
         info('-------------INITIALIZING NEW CAMERA-----------')
         import PySpin
         from circular_buffer_numpy.queue import Queue
-        self.system = PySpin.System.GetInstance()
+
         config, flag = self.read_config_file(config_filename)
         self.config = config
 
@@ -381,10 +382,13 @@ class FlirCamera():
         info(f'found {num_cameras} cameras')
         for i,cam in enumerate(cam_list):
             sn = cam.TLDevice.DeviceSerialNumber.GetValue()
-            info(f'sn = {sn}')
+            print(f'sn = {sn}')
             if serial_number == sn:
                 self.serial_number = sn
                 break
+            else:
+                cam = None
+                self.serial_number = None
         cam_list.Clear()
         return cam
 
