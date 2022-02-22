@@ -14,6 +14,8 @@ FLIR camera software
 * Free software: 3-clause BSD license
 * Documentation: (COMING SOON!) https://vstadnytskyi.github.io/lcp-flir.
 
+Software has been used and tested with Blackfly anf Grosshoper3 camera
+
 Features
 --------
 
