@@ -1,6 +1,6 @@
-===============
-LCP FLIR camera
-===============
+==============================
+FLIR camera control software
+==============================
 
 .. image:: https://img.shields.io/travis/vstadnytskyi/lcp-flir.svg
         :target: https://travis-ci.org/vstadnytskyi/lcp-flir
@@ -9,7 +9,7 @@ LCP FLIR camera
         :target: https://pypi.python.org/pypi/lcp-flir
 
 
-LCP FLIR camera software
+FLIR camera software
 
 * Free software: 3-clause BSD license
 * Documentation: (COMING SOON!) https://vstadnytskyi.github.io/lcp-flir.
