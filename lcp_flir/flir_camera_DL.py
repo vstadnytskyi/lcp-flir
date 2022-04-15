@@ -106,17 +106,17 @@ class FlirCamera():
         for i in range(3):
             try:
                 self.cam.BeginAcquisition()
-                info("Acquisition Started")
+                print("Acquisition Started")
                 sleep(1)
             except PySpin.SpinnakerException as ex:
-                info("Acquisition was already started")
+                print("Acquisition was already started")
                 sleep(1)
             try:
                 self.cam.EndAcquisition()
-                info("Acquisition ended")
+                print("Acquisition ended")
                 sleep(1)
             except PySpin.SpinnakerException as ex:
-                info("Acquisition was already ended")
+                print("Acquisition was already ended")
                 sleep(1)
 
         # reset camera to default settings
@@ -282,9 +282,11 @@ class FlirCamera():
             print(f'trigger activation = {trigger_activation}')
         else:
             print(f'trigger activation is not readable')
-
-        acquisition_frame_rate_enable = self.cam.AcquisitionFrameRateEnable.GetValue()
-        print(f'acquisition frame rate enable = {acquisition_frame_rate_enable}')
+        if PySpin.IsReadable(self.cam.AcquisitionFrameRateEnable):
+            acquisition_frame_rate_enable = self.cam.AcquisitionFrameRateEnable.GetValue()
+            print(f'acquisition frame rate enable = {acquisition_frame_rate_enable}')
+        else:
+            print(f'acquisition frame rate enable is not readable')
 
         acquisition_frame_rate = self.cam.AcquisitionFrameRate.GetValue()
         print(f'acquisition frame rate = {acquisition_frame_rate}')
@@ -544,7 +546,7 @@ class FlirCamera():
 
     def get_image(self):
         from lcp_video.analysis import mono12p_to_image
-        self.last_raw_image *= 0
+        from numpy import zeros
         if self.acquiring:
             image_result = self.cam.GetNextImage()
             timestamp = image_result.GetTimeStamp()
@@ -567,6 +569,7 @@ class FlirCamera():
             image_data = zeros((self.height*self.width,))
 
         pointer = self.img_len
+        self.last_raw_image *= 0
         self.last_raw_image[:pointer] = image_data
         self.last_raw_image[pointer:pointer+64] = self.get_image_header(value =int(time()*1000000), length = 64)
         self.last_raw_image[pointer+64:pointer+128] = self.get_image_header(value = timestamp, length = 64)
@@ -597,15 +600,6 @@ class FlirCamera():
         if self.acquiring:
             raw = self.get_image().reshape(1,self.img_len+4096)
             self.queue.enqueue(raw)
-            if not self.recording and self.calc_on_the_fly:
-                self.last_reshaped_image = mono12p_to_image(raw[0,:self.img_len],self.height,self.width).reshape((self.height,self.width))
-                hits = ((self.last_reshaped_image>(self.image_threshold+self.image_median))*~self.mask).sum()
-                arr = zeros((1,2))
-                arr[0,0] = time()
-                arr[0,1] = hits
-                from EPICS_CA.CAServer import casput
-                casput(f'{self.name.upper()}_CAMERA:HITS.RBV',hits)
-                self.hits_buffer.append(arr)
             if self.broadcast_frames:
                 io_dict = {}
                 tlab,tcam,frameID = self.extract_timestamp_image(raw.flatten())
@@ -703,6 +697,7 @@ class FlirCamera():
     def set_black_level(self,value):
         """
         """
+        import traceback
         try:
             self.cam.BlackLevelSelector.SetValue(0)
             self.cam.BlackLevel.SetValue(value*100/4095)
@@ -791,14 +786,21 @@ class FlirCamera():
         """
         if self.cam is not None:
             info('setting Look Up Table Enable to False')
-            self.cam.LUTEnable.SetValue(value)
+            if PySpin.IsWritable(self.cam.LUTEnable):
+                self.cam.LUTEnable.SetValue(value)
+            else:
+                print('self.cam.LUTEnable is not writable')
     lut_enable = property(get_lut_enable,set_lut_enable)
 
     def get_gamma_enable(self):
         """
         """
         if self.cam is not None:
-            result = self.cam.GammaEnable.GetValue()
+            if PySpin.IsReadable(self.cam.GammaEnable):
+                result = self.cam.GammaEnable.GetValue()
+            else:
+                print('GammaEnable is not readable')
+                result = None
         else:
             result = None
         return result
@@ -806,7 +808,10 @@ class FlirCamera():
         """
         """
         if self.cam is not None:
-            self.cam.GammaEnable.SetValue(value)
+            if PySpin.IsWritable(self.cam.GammaEnable):
+                self.cam.GammaEnable.SetValue(value)
+            else:
+                print('GammaEnable is not writable')
         info(f'setting gamma enable {value}')
     gamma_enable = property(get_gamma_enable,set_gamma_enable)
 
@@ -899,15 +904,15 @@ class FlirCamera():
 
         "Two different pixel formats: PixelFormat_Mono12p and PixelFormat_Mono12Packed"
 
-        if self.reverseX == 1:
+        if self.reverseX == 1 and PySpin.IsReadable(self.cam.ReverseX):
             print('reversing X axis')
             self.cam.ReverseX.SetValue(True)#(True,True)
-        else:
+        elif PySpin.IsReadable(self.cam.ReverseX):
             self.cam.ReverseX.SetValue(False)#(False,True)
-        if self.reverseY == 1:
+        if self.reverseY == 1 and PySpin.IsReadable(self.cam.ReverseY):
             print('reversing Y axis')
             self.cam.ReverseY.SetValue(True)#(True,True)
-        else:
+        elif PySpin.IsReadable(self.cam.ReverseY):
             self.cam.ReverseY.SetValue(False)#(False,True)
 
         info(f'setting pixel format {self.pixel_format}')
@@ -983,32 +988,46 @@ class FlirCamera():
             pass
 
         info('setting up binning')
-        self.cam.BinningHorizontal.SetValue(1)
-        self.cam.BinningVertical.SetValue(1)
-        self.cam.IspEnable.SetValue(False)
+        if PySpin.IsWritable(self.cam.BinningHorizontal):
+            self.cam.BinningHorizontal.SetValue(1)
+        else:
+            print('BinningHorizontal is not Writable')
+        if PySpin.IsWritable(self.cam.BinningVertical):
+            self.cam.BinningVertical.SetValue(1)
+        else:
+            print('BinningVertical is not Writable')
+        if PySpin.IsWritable(self.cam.IspEnable):
+            self.cam.IspEnable.SetValue(False)
+        else:
+            print('IspEnable is not Writable')
 
 
 
 
-        if self.binning_horizontal_mode == 'Average':
+        if self.binning_horizontal_mode == 'Average' and PySpin.IsWritable(self.cam.BinningHorizontalMode):
             self.cam.BinningHorizontalMode.SetValue(PySpin.BinningHorizontalMode_Average)
-        elif self.binning_horizontal_mode == 'Sum':
+        elif self.binning_horizontal_mode == 'Sum' and PySpin.IsWritable(self.cam.BinningHorizontalMode):
             self.cam.BinningHorizontalMode.SetValue(PySpin.BinningHorizontalMode_Sum)
 
-        if self.binning_vertical_mode == 'Average':
+        if self.binning_vertical_mode == 'Average' and PySpin.IsWritable(self.cam.BinningVerticalMode):
             self.cam.BinningVerticalMode.SetValue(PySpin.BinningVerticalMode_Average)
-        elif self.binning_vertical_mode == 'Sum':
+        elif self.binning_vertical_mode == 'Sum' and PySpin.IsWritable(self.cam.BinningVerticalMode):
             self.cam.BinningVerticalMode.SetValue(PySpin.BinningVerticalMode_Sum)
 
+        if PySpin.IsWritable(self.cam.BinningHorizontal):
+            self.cam.BinningHorizontal.SetValue(self.binning_horizontal)
+        else:
+            print('BinningHorizontal is not Writable')
+        if PySpin.IsWritable(self.cam.BinningVertical):
+            self.cam.BinningVertical.SetValue(self.binning_vertical)
+        else:
+            print('BinningVertical is not Writable')
 
-        self.cam.BinningHorizontal.SetValue(self.binning_horizontal)
-        self.cam.BinningVertical.SetValue(self.binning_vertical)
-
-        if self.binning_selector == 'All':
+        if self.binning_selector == 'All' and PySpin.IsWritable(self.cam.BinningSelector):
             self.cam.BinningSelector.SetValue(PySpin.BinningSelector_All)
-        elif self.binning_selector == 'Sensor':
+        elif self.binning_selector == 'Sensor' and PySpin.IsWritable(self.cam.BinningSelector):
             self.cam.BinningSelector.SetValue(PySpin.BinningSelector_Sensor)
-        elif self.binning_selector == 'ISP':
+        elif self.binning_selector == 'ISP' and PySpin.IsWritable(self.cam.BinningSelector):
             self.cam.BinningSelector.SetValue(PySpin.BinningSelector_ISP)
 
     def conf_acq_and_trigger(self, settings = 1):
@@ -1038,7 +1057,10 @@ class FlirCamera():
                 info('setting continuous acquisition mode')
                 self.cam.AcquisitionMode.SetIntValue(PySpin.AcquisitionMode_Continuous)
                 info('setting frame rate enable to False')
-                self.cam.AcquisitionFrameRateEnable.SetValue(False)
+                if PySpin.IsReadable(self.cam.AcquisitionFrameRateEnable):
+                    self.cam.AcquisitionFrameRateEnable.SetValue(False)
+                else:
+                    print('AcquisitionFrameRateEnable is not readable')
 
                 if self.trigger == 'Line0':
                     info('setting TriggerSource Line0')
