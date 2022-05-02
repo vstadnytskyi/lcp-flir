@@ -70,7 +70,6 @@ class FlirCamera():
         self.name = config['name']
 
         self.pixel_format = config['pixel_format']
-
         self.ROI_width = int(config['ROI_width'])
         self.ROI_height = int(config['ROI_height'])
         self.ROI_offset_x = int(config['ROI_offset_x'])
@@ -80,6 +79,8 @@ class FlirCamera():
         self.reverseY = int(config['ROI_offset_y'])
         self.rotate = int(config['rotate'])
         self.trigger = config['trigger']
+        if 'queue_length' in config.keys():
+            self.queue_length = config['queue_length']
         if 'binning_selector' in config.keys():
             self.binning_selector = config['binning_selector']
         if 'binning_horizontal_mode' in config.keys():
@@ -159,8 +160,7 @@ class FlirCamera():
 
         self.queue_frameID = Queue((self.queue_length,2), dtype = 'float64')
 
-        self.last_raw_image = zeros((self.img_len+self.header_length,), dtype = self.images_dtype)
-
+        self._last_raw_image = zeros((self.img_len+self.header_length), dtype = self.images_dtype)
         from circular_buffer_numpy.circular_buffer import CircularBuffer
         self.hits_buffer = CircularBuffer((1350000,2),dtype = 'float64')
 
@@ -546,7 +546,7 @@ class FlirCamera():
 
     def get_image(self):
         from lcp_video.analysis import mono12p_to_image
-        from numpy import zeros
+        from numpy import zeros, empty, int16
         if self.acquiring:
             image_result = self.cam.GetNextImage()
             timestamp = image_result.GetTimeStamp()
@@ -569,12 +569,12 @@ class FlirCamera():
             image_data = zeros((self.height*self.width,))
 
         pointer = self.img_len
-        self.last_raw_image *= 0
-        self.last_raw_image[:pointer] = image_data
-        self.last_raw_image[pointer:pointer+64] = self.get_image_header(value =int(time()*1000000), length = 64)
-        self.last_raw_image[pointer+64:pointer+128] = self.get_image_header(value = timestamp, length = 64)
-        self.last_raw_image[pointer+128:pointer+192] = self.get_image_header(value = frameid, length = 64)
-        return self.last_raw_image
+        self._last_raw_image *= 0
+        self._last_raw_image[:pointer] = image_data
+        self._last_raw_image[pointer:pointer+64] = self.get_image_header(value =int(time()*1000000), length = 64)
+        self._last_raw_image[pointer+64:pointer+128] = self.get_image_header(value = timestamp, length = 64)
+        self._last_raw_image[pointer+128:pointer+192] = self.get_image_header(value = frameid, length = 64)
+        return self._last_raw_image
 
     def get_image_header(self,value = None, length = 4096):
         from time import time
@@ -595,10 +595,10 @@ class FlirCamera():
 
     def run_once(self):
         from time import time
-        from numpy import zeros,array
+        from numpy import zeros,array, copy
         from lcp_video.analysis import mono12p_to_image
         if self.acquiring:
-            raw = self.get_image().reshape(1,self.img_len+4096)
+            raw = self.get_image().reshape(1,self.img_len+self.header_length)
             self.queue.enqueue(raw)
             if self.broadcast_frames:
                 io_dict = {}
@@ -989,20 +989,23 @@ class FlirCamera():
 
         info('setting up binning')
         if PySpin.IsWritable(self.cam.BinningHorizontal):
-            self.cam.BinningHorizontal.SetValue(1)
+            try:
+                self.cam.BinningHorizontal.SetValue(1)
+            except:
+                print('The node is writable but could not set BinningHorizontal = 1')
         else:
             print('BinningHorizontal is not Writable')
         if PySpin.IsWritable(self.cam.BinningVertical):
-            self.cam.BinningVertical.SetValue(1)
+            try:
+                self.cam.BinningVertical.SetValue(1)
+            except:
+                print('The node is writable but could not set BinningVertical = 1')
         else:
             print('BinningVertical is not Writable')
         if PySpin.IsWritable(self.cam.IspEnable):
             self.cam.IspEnable.SetValue(False)
         else:
             print('IspEnable is not Writable')
-
-
-
 
         if self.binning_horizontal_mode == 'Average' and PySpin.IsWritable(self.cam.BinningHorizontalMode):
             self.cam.BinningHorizontalMode.SetValue(PySpin.BinningHorizontalMode_Average)
@@ -1015,14 +1018,19 @@ class FlirCamera():
             self.cam.BinningVerticalMode.SetValue(PySpin.BinningVerticalMode_Sum)
 
         if PySpin.IsWritable(self.cam.BinningHorizontal):
-            self.cam.BinningHorizontal.SetValue(self.binning_horizontal)
+            try:
+                self.cam.BinningHorizontal.SetValue(self.binning_horizontal)
+            except:
+                print(f'The node is writable but could not set BinningHorizontal = {self.binning_horizontal}')
         else:
             print('BinningHorizontal is not Writable')
         if PySpin.IsWritable(self.cam.BinningVertical):
-            self.cam.BinningVertical.SetValue(self.binning_vertical)
+            try:
+                self.cam.BinningVertical.SetValue(self.binning_vertical)
+            except:
+                print(f'The node is writable but could not set BinningVertical = {self.binning_vertical}')
         else:
             print('BinningVertical is not Writable')
-
         if self.binning_selector == 'All' and PySpin.IsWritable(self.cam.BinningSelector):
             self.cam.BinningSelector.SetValue(PySpin.BinningSelector_All)
         elif self.binning_selector == 'Sensor' and PySpin.IsWritable(self.cam.BinningSelector):
@@ -1124,7 +1132,7 @@ class FlirCamera():
         from numpy import right_shift
 
         rawdata = rawdata[:self.img_len]
-        print(f'rawdata = {rawdata.dtype}')
+        info(f'rawdata = {rawdata.dtype}')
         if self.pixel_format == 'mono12p':
             image = mono12p_to_image(rawdata=rawdata,height=self.height,width=self.width)
         elif self.pixel_format == 'mono12packed':
@@ -1140,12 +1148,16 @@ class FlirCamera():
 
 # Recording
 #
-    def record_dataset(self, root = '/mnt/data/', name = 'test', N_frames = 256, overwrite = False, N_chunks = 65536):
+    def record_dataset(self, root = '', name = 'test', N_frames = 256, overwrite = False, N_chunks = 10):
         """
+        if root is left empty, the data will be saved to temporary directory on the computer the code is running
         a wrapper to
         """
         import os
         from time import sleep, ctime, time
+        if root == '':
+            from tempfile import gettempdir
+            root = gettempdir()
         self.recording_stop()
         sleep(0.5) #It is not clear to me what is the purpose of this sleep. It could to allow a last image to be collected. But that should take no more than "exposure time".
         self.queue.reset();
@@ -1164,7 +1176,8 @@ class FlirCamera():
         """
         Initializes recording
         """
-        self.recording_basefilename = self.recording_root+f'{self.name}_{name}'
+        import os
+        self.recording_basefilename = os.path.join(self.recording_root,f'{self.name}_{name}')
         self.recording_chunk_pointer = 0
         filename = self.recording_basefilename + '_' + str(self.recording_chunk_pointer) + '.tmpraw.hdf5'
         self.recording_create_file(filename = filename, N_frames = N_frames, overwrite = overwrite)
