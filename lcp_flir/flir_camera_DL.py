@@ -91,7 +91,9 @@ class FlirCamera():
             self.binning_vertical = int(config['binning_vertical'])
         if 'binning_horizontal' in config.keys():
             self.binning_horizontal = int(config['binning_horizontal'])
-
+        if 'adc_bit_depth' in config.keys():
+            self.adc_bit_depth = config['adc_bit_depth']
+        
         nice = int(config['nice'])
         self.nice = nice
         info(f'setting up nice {nice}')
@@ -155,7 +157,17 @@ class FlirCamera():
             self.conversion_mask8 = get_mono12p_conversion_mask_8bit(self.img_len)
         elif self.pixel_format == 'mono16' or self.pixel_format == 'mono12p_16':
             self.img_len = int(self.height*self.width)
-            self.images_dtype = 'int16'
+            self.images_dtype = 'uint16'
+        elif self.pixel_format == 'BayerGR12p' or self.pixel_format == 'BayerRG12p': 
+            self.img_len = int(self.height*self.width*1.5)
+            self.images_dtype = 'uint16'
+        elif self.pixel_format == 'BayerGB12p' or self.pixel_format == 'BayerBG12p':
+            self.img_len = int(self.height*self.width*1.5)
+            self.images_dtype = 'uint16'
+        elif self.pixel_format == 'BayerRG16':
+            self.img_len = int(self.height*self.width)
+            self.images_dtype = 'uint16'
+            
         self.queue = Queue((self.queue_length,self.img_len+self.header_length), dtype = self.images_dtype)
 
         self.queue_frameID = Queue((self.queue_length,2), dtype = 'float64')
@@ -287,6 +299,10 @@ class FlirCamera():
             print(f'acquisition frame rate enable = {acquisition_frame_rate_enable}')
         else:
             print(f'acquisition frame rate enable is not readable')
+
+
+
+            
 
         acquisition_frame_rate = self.cam.AcquisitionFrameRate.GetValue()
         print(f'acquisition frame rate = {acquisition_frame_rate}')
@@ -915,6 +931,9 @@ class FlirCamera():
         elif PySpin.IsReadable(self.cam.ReverseY):
             self.cam.ReverseY.SetValue(False)#(False,True)
 
+
+            
+
         info(f'setting pixel format {self.pixel_format}')
         if self.pixel_format=='mono12p' or self.pixel_format=='mono12p_16':
             try:
@@ -937,6 +956,16 @@ class FlirCamera():
                 self.cam.PixelFormat.SetValue(PySpin.PixelFormat_Mono8)
             except:
                 print('cannot set PixelFormat.SetValue(PySpin.PixelFormat_Mono8)')
+        elif self.pixel_format =='BayerRG16':
+            try:
+                self.cam.PixelFormat.SetValue(PySpin.PySpin.PixelFormat_BayerRG16)
+            except:
+                print('cannot set PixelFormat.SetValue(PySpin.PySpin.PixelFormat_BayerRG16)')
+        elif self.pixel_format =='BayerRG12p':
+            try:
+                self.cam.PixelFormat.SetValue(PySpin.PySpin.PixelFormat_BayerRG12p)
+            except:
+                print('cannot set PixelFormat.SetValue(PySpin.PySpin.PixelFormat_BayerRG12p)')
 
         #self.cam.Width.SetValue(self.cam.WidthMax.GetValue())
         #self.cam.Height.SetValue(self.cam.HeightMax.GetValue())
@@ -1037,6 +1066,20 @@ class FlirCamera():
             self.cam.BinningSelector.SetValue(PySpin.BinningSelector_Sensor)
         elif self.binning_selector == 'ISP' and PySpin.IsWritable(self.cam.BinningSelector):
             self.cam.BinningSelector.SetValue(PySpin.BinningSelector_ISP)
+
+        if PySpin.IsWritable(self.cam.AdcBitDepth):
+            if self.adc_bit_depth == 'Bit8':
+                self.cam.AdcBitDepth.SetValue(PySpin.AdcBitDepth_Bit8)
+            elif self.adc_bit_depth == 'Bit10':
+                self.cam.AdcBitDepth.SetValue(PySpin.AdcBitDepth_Bit10)
+            elif self.adc_bit_depth == 'Bit12':
+                self.cam.AdcBitDepth.SetValue(PySpin.AdcBitDepth_Bit12)
+            elif self.adc_bit_depth == 'Bit14':
+                self.cam.AdcBitDepth.SetValue(PySpin.AdcBitDepth_Bit14)
+            else:
+                print('The selected ADC bit depth is not supported or not recognized. Using 8 bits as defaults')
+                self.cam.AdcBitDepth.SetValue(PySpin.AdcBitDepth_Bit8)
+
 
     def conf_acq_and_trigger(self, settings = 1):
         """
