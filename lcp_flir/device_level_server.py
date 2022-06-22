@@ -29,8 +29,8 @@ from caproto.server import pvproperty, PVGroup, ioc_arg_parser, run
 import caproto
 from textwrap import dedent
 import numpy as np
-raw_image = np.zeros((int(3000*4096*1.5),1), dtype = 'uint8')
 
+raw_image = np.zeros((4000*3000*2), dtype = np.int8)
 class Server(PVGroup):
     """
     An IOC with three uncoupled read/writable PVs
@@ -52,8 +52,9 @@ class Server(PVGroup):
     frameID = pvproperty(value=0.0, units = 'count', dtype=int)
 
 
-    DIO = pvproperty(value=0, units = 'counts')
+    exposure_time = pvproperty(value=0.0, units = 'microseconds', dtype=float)
 
+    DIO = pvproperty(value=0, units = 'counts')
     CH0 = pvproperty(value=0, units = 'counts')
     CH1 = pvproperty(value=0, units = 'counts')
     CH2 = pvproperty(value=0, units = 'counts')
@@ -69,7 +70,7 @@ class Server(PVGroup):
         # This method will be called when the server starts up.
         self.io_pull_queue = async_lib.ThreadsafeQueue()
         self.io_push_queue = async_lib.ThreadsafeQueue()
-        camera.io_push_queue = self.io_push_queue
+        self.device.io_push_queue = self.io_push_queue
 
         # Loop and grab items from the response queue one at a time
         while True:
@@ -85,8 +86,8 @@ class Server(PVGroup):
                     await self.timestamp_camera.write(io_dict[key])
                 elif key == 'frameID':
                     await self.frameID.write(io_dict[key])
-                elif key == 'DIO':
-                    await self.DIO.write(io_dict[key])
+                elif key == 'exposure_time':
+                    await self.exposure_time.write(io_dict[key])
                 elif key == 'CH0':
                     await self.CH0.write(io_dict[key])
                 elif key == 'CH1':
@@ -111,12 +112,19 @@ def start(config_filename):
     return camera
 
 if __name__ == "__main__": #for testing
+    from caproto.server import pvproperty, PVGroup, ioc_arg_parser, run
+    import caproto
+    from textwrap import dedent
+    import numpy as np
+
     from tempfile import gettempdir
     import sys
 
     config_filename = '/net/femto/C/All Projects/LaserLab/Software/instruments/Aerosols/config_top_12bit_server.conf'
     camera = start(config_filename = config_filename)
     camera.broadcast_frames = True
+
+    raw_image = np.copy(camera.queue.peek_last_N(1)[0])
 
     from caproto import config_caproto_logging
     config_caproto_logging(file=gettempdir()+'/camera_DLS.log', level='DEBUG')

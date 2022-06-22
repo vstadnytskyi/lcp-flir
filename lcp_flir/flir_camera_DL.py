@@ -15,6 +15,7 @@ class FlirCamera():
         """
         debug(f'__init__ FlirCamera with name {name}')
         from numpy import zeros, nan
+        from tempfile import gettempdir
         self.name = name
         self.system = system
 
@@ -25,7 +26,7 @@ class FlirCamera():
 
         #Recording
         self.recording_filename = f'camera_{name}.hdf5'
-        self.recording_root = '/mnt/data/'
+        self.recording_root = gettempdir()
         self.recording_N = 1
         self.recording = False
         self.recording_pointer = 0
