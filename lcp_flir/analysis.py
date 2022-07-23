@@ -41,3 +41,39 @@ def convert_raw_mono16_to_image(data, shape = None):
         2D array with given height(number of rows) and width(number of colums).
     """
     pass
+
+
+def extract_timestamp_image(raw,img_len):
+    """
+    Extracts header information from the
+
+    returns timestamp_lab,timestamp_cam,frameid
+    """
+    from lcp_flir.analysis import bin_array, binarr_to_number
+    pointer = img_len
+    header_img = raw[pointer:pointer+64]
+    timestamp_lab =  binarr_to_number(header_img)/1000000
+    header_img = raw[pointer+64:pointer+128]
+    timestamp_cam =  binarr_to_number(header_img)
+    header_img = raw[pointer+128:pointer+192]
+    frameid =  binarr_to_number(header_img)
+    return timestamp_lab,timestamp_cam,frameid
+
+def binarr_to_number(vector):
+    """
+    converts a vector of bits into an integer.
+    """
+    num = 0
+    from numpy import flip
+    vector = flip(vector)
+    length = vector.shape[0]
+    for i in range(length):
+        num += (2**(i))*vector[i]
+    return num
+
+def bin_array(num, m):
+    """
+    Converts a positive integer num into an m-bit bit vector
+    """
+    from numpy import uint8, binary_repr,array
+    return array(list(binary_repr(num).zfill(m))).astype(uint8)
