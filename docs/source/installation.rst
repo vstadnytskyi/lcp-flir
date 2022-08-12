@@ -27,3 +27,7 @@ FLIR cameras require FLIR SDK which is called spinnaker. It can be donwloaded fr
 If you have Linux, you can install spinnaker from wheel, run following command at the command line::
 
     $ python -m wheel install flir-spinnaker/spinnaker_python-2.0.0.109-cp37-cp37m-linux_x86_64.whl
+
+Remember that spinnaker python is just a wrapper around Spinnaker SDK that you need to download from FLIR webpage and install separately. https://www.flir.com/products/spinnaker-sdk
+
+Download the most recent spinnaker SDK for Windows 11. 
